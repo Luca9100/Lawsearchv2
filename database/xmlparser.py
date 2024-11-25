@@ -1,5 +1,6 @@
 import xml.etree.ElementTree as ET
 import os
+import json
 
 # Define buckets and associated laws
 buckets = {
@@ -8,17 +9,42 @@ buckets = {
     "Financial Law": ["OR", "ZGB", "FINIG", "KAG", "FIDLEG", "GwG", "BankG"]
 }
 
-def parse_article(article, law_name, law_type, bucket, hierarchy):
+# Load fedlex_identifiers from JSON
+def load_fedlex_identifiers():
+    json_path = os.path.join(os.path.dirname(__file__), "fedlex_identifiers.json")
+    if not os.path.exists(json_path):
+        raise FileNotFoundError("fedlex_identifiers.json not found. Please run fetch_laws.py.")
+    with open(json_path, "r") as f:
+        return json.load(f)
+
+fedlex_identifiers = load_fedlex_identifiers()
+
+def assign_buckets(law_name):
+    """
+    Determine all applicable buckets for a given law name.
+    """
+    assigned_buckets = []
+    for bucket, laws in buckets.items():
+        if law_name in laws:
+            assigned_buckets.append(bucket)
+    return assigned_buckets
+
+def parse_article(article, law_name, law_type, buckets, base_url):
     """Parse an individual article element to extract relevant fields."""
     eId = article.attrib.get("eId", "")
+    article_parts = eId.split("_")
+    article_number = "_".join(article_parts[1:])  # Extract the full article number (e.g., 4_bis)
     title = ""
     text = []
+
+    # Construct the link
+    link = f"https://www.fedlex.admin.ch/eli/cc/{base_url}/de#art_{article_number}"
 
     # Traverse through the article's children to gather title and text
     for child in article:
         tag_name = child.tag.split("}")[-1]  # Ignore namespace
         if tag_name == "heading":  # Capture title
-            title = child.text.strip() if child.text else ""
+            title = child.text.strip() if child.text else "No Title"
         elif tag_name in {"paragraph", "content", "p"}:  # Capture text
             paragraph_text = "".join(child.itertext()).strip()  # Gather all text within paragraph
             text.append(paragraph_text)
@@ -26,44 +52,37 @@ def parse_article(article, law_name, law_type, bucket, hierarchy):
     # Join all paragraphs to form the complete text of the article
     full_text = "\n".join(text)
 
-    # Debug: Print extracted title and text sample
-    if title:
-        print(f"Extracted title: {title[:50]}...")
-    else:
-        print("No title extracted")
-    if full_text:
-        print(f"Extracted text sample: {full_text[:50]}...")
-    else:
-        print("No text extracted")
+    # Create one article per bucket
+    return [
+        {
+            'law_name': law_name,
+            'eId': eId,
+            'bucket': bucket,
+            'law_type': law_type,
+            'title': title,
+            'text': full_text,
+            'link': link
+        }
+        for bucket in buckets
+    ]
 
-    return {
-        'law_name': law_name,
-        'eId': eId,
-        'bucket': bucket,
-        'law_type': law_type,
-        'title': title,
-        'text': full_text,
-        'hierarchy': hierarchy
-    }
-
-def parse_section(section, law_name, law_type, bucket, parent_tags):
+def parse_section(section, law_name, law_type, buckets, base_url):
     """Parse sections to find articles and other subsections recursively."""
     articles = []
-    hierarchy = parent_tags + [section.tag.split("}")[-1]]  # Add current tag to hierarchy
 
     for child in section:
         tag_name = child.tag.split("}")[-1]
         if tag_name == "article":
             # Parse individual article
-            article_data = parse_article(child, law_name, law_type, bucket, hierarchy + [tag_name])
-            articles.append(article_data)
+            article_data = parse_article(child, law_name, law_type, buckets, base_url)
+            articles.extend(article_data)
         else:
             # Recursively parse sections, chapters, etc.
-            articles.extend(parse_section(child, law_name, law_type, bucket, hierarchy))
+            articles.extend(parse_section(child, law_name, law_type, buckets, base_url))
 
     return articles
 
-def parse_law_file(file_path, law_name, law_type, bucket):
+def parse_law_file(file_path, law_name, law_type):
     """Parse an XML law file and extract all articles."""
     print(f"Starting to parse {law_name}...")
 
@@ -75,6 +94,21 @@ def parse_law_file(file_path, law_name, law_type, bucket):
         tree = ET.parse(file_path)
         root = tree.getroot()
 
+        # Extract the <meta> element and base_url
+        meta_element = root.find(".//{http://docs.oasis-open.org/legaldocml/ns/akn/3.0}meta")
+        frbr_manifestation = None
+        base_url = fedlex_identifiers.get(law_name, "unknown")  # Fallback to the identifier from JSON
+
+        if meta_element is not None:
+            frbr_manifestation = meta_element.find(".//{http://docs.oasis-open.org/legaldocml/ns/akn/3.0}FRBRManifestation")
+            if frbr_manifestation is not None:
+                value = frbr_manifestation.attrib.get("value")
+                if value and "eli/cc/" in value:
+                    base_url = value.split("eli/cc/")[1].split("/")[0]
+
+        # Determine all applicable buckets for the law
+        law_buckets = assign_buckets(law_name)
+
         # Start parsing from the body tag, where articles are usually contained
         body = root.find(".//{http://docs.oasis-open.org/legaldocml/ns/akn/3.0}body")
         if body is None:
@@ -82,8 +116,8 @@ def parse_law_file(file_path, law_name, law_type, bucket):
             return []
         else:
             print(f"Body found for {law_name}. Parsing sections...")
-            articles = parse_section(body, law_name, law_type, bucket, ["akomaNtoso", "act", "body"])
-            print(f"Parsed {len(articles)} articles from {law_name} under bucket '{bucket}'.")
+            articles = parse_section(body, law_name, law_type, law_buckets, base_url)
+            print(f"Parsed {len(articles)} articles from {law_name} assigned to buckets {law_buckets}.")
             return articles
     except ET.ParseError as e:
         print(f"Error parsing {file_path}: {e}")
@@ -100,24 +134,8 @@ def main(law_folder):
             file_path = os.path.join(law_folder, filename)
             law_type = "Gesetz"  # Set law type; can be customized per file
 
-            # Skip OR and ZGB, as they are handled by a separate parser
-            if law_name in ["OR", "ZGB"]:
-                print(f"Skipping {law_name} as it is handled by a separate parser.")
-                continue
-
-            # Assign law to the appropriate bucket
-            law_bucket = None
-            for bucket, laws in buckets.items():
-                if law_name in laws:
-                    law_bucket = bucket
-                    break
-
-            if not law_bucket:
-                print(f"No bucket found for {law_name}. Skipping.")
-                continue
-
             # Parse the law file
-            articles = parse_law_file(file_path, law_name, law_type, law_bucket)
+            articles = parse_law_file(file_path, law_name, law_type)
             all_articles.extend(articles)
 
     print(f"Total articles parsed: {len(all_articles)}")

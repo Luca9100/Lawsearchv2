@@ -1,5 +1,6 @@
 from lxml import etree
 import os
+import json
 
 # Define buckets and associated laws
 buckets = {
@@ -8,26 +9,61 @@ buckets = {
     "Financial Law": ["OR", "ZGB", "FINIG", "KAG", "FIDLEG", "GwG", "BankG"]
 }
 
-def parse_or_zgb_article(article, law_name, law_type, bucket, hierarchy):
-    """Parse articles with specific logic for OR and ZGB."""
+# Load fedlex_identifiers from JSON
+def load_fedlex_identifiers():
+    json_path = os.path.join(os.path.dirname(__file__), "fedlex_identifiers.json")
+    if not os.path.exists(json_path):
+        raise FileNotFoundError("fedlex_identifiers.json not found. Please run fetch_laws.py.")
+    with open(json_path, "r") as f:
+        return json.load(f)
+
+fedlex_identifiers = load_fedlex_identifiers()
+
+def assign_buckets(law_name):
+    """
+    Determine all applicable buckets for a given law name.
+    """
+    assigned_buckets = []
+    for bucket, laws in buckets.items():
+        if law_name in laws:
+            assigned_buckets.append(bucket)
+    return assigned_buckets
+
+def extract_identifier(meta_element, law_name):
+    """
+    Extracts the unique identifier for the law from the <meta> section.
+    """
+    if meta_element is not None:
+        frbr_manifestation = meta_element.find(".//{http://docs.oasis-open.org/legaldocml/ns/akn/3.0}FRBRManifestation")
+        if frbr_manifestation is not None:
+            identifier = frbr_manifestation.attrib.get("value")
+            if identifier:
+                # Extract the relevant part of the identifier for the URL
+                parts = identifier.split("eli/cc/")
+                if len(parts) > 1:
+                    return parts[1].split("/")[0]
+    # Use fedlex_identifiers fallback if <meta> is missing or invalid
+    return fedlex_identifiers.get(law_name, "default")
+
+def parse_or_zgb_article(article, law_name, law_type, buckets, base_url):
+    """
+    Parse articles with specific logic for OR and ZGB.
+    """
     eId = article.attrib.get("eId", "")
+    article_number = "_".join(eId.split("_")[1:])  # Handle suffixes like 4_bis or 4_ter
     text = []
     title = ""
 
     # Extract the heading closest to the article
     current_element = article
-    lowest_heading = None
-
     while current_element is not None:
-        # Find heading within the current element
         heading = current_element.find(".//{http://docs.oasis-open.org/legaldocml/ns/akn/3.0}heading")
         if heading is not None:
-            lowest_heading = " ".join(heading.itertext()).strip()
-            break  # Stop once we find the nearest heading
+            title = " ".join(heading.itertext()).strip()
+            break
         current_element = current_element.getparent()
 
-    # Assign the nearest heading as the title
-    title = lowest_heading if lowest_heading else "No Title"
+    title = title if title else "No Title"
 
     # Gather content paragraphs
     for child in article:
@@ -38,38 +74,78 @@ def parse_or_zgb_article(article, law_name, law_type, bucket, hierarchy):
 
     full_text = "\n".join(text)
 
+    # Return a single article with all buckets
     return {
         'law_name': law_name,
         'eId': eId,
-        'bucket': bucket,
+        'bucket': buckets,  # Assign all applicable buckets as a list
         'law_type': law_type,
-        'title': title,  # Closest heading to the article
+        'title': title,
         'text': full_text,
-        'hierarchy': hierarchy
+        'link': f"https://www.fedlex.admin.ch/eli/cc/{base_url}/de#art_{article_number}"
     }
 
-def parse_or_zgb_section(section, law_name, law_type, bucket, parent_tags):
-    """Recursive parsing for OR/ZGB sections."""
+def parse_or_zgb_section(section, law_name, law_type, buckets, base_url):
+    """
+    Recursive parsing for OR/ZGB sections.
+    """
     articles = []
-    hierarchy = parent_tags + [section.tag.split("}")[-1]]
 
     for child in section:
         tag_name = child.tag.split("}")[-1]
         if tag_name == "article":
-            article_data = parse_or_zgb_article(child, law_name, law_type, bucket, hierarchy + [tag_name])
+            # Parse individual article
+            article_data = parse_or_zgb_article(child, law_name, law_type, buckets, base_url)
             articles.append(article_data)
         else:
-            articles.extend(parse_or_zgb_section(child, law_name, law_type, bucket, hierarchy))
+            # Recursively parse subsections
+            articles.extend(parse_or_zgb_section(child, law_name, law_type, buckets, base_url))
 
     return articles
 
-def parse_or_zgb_file(file_path, law_name, law_type, bucket):
-    """Parse OR/ZGB files with specific logic."""
-    tree = etree.parse(file_path)
-    root = tree.getroot()
+def parse_or_zgb_file(file_path, law_name, law_type):
+    """
+    Parse OR/ZGB files with specific logic.
+    """
+    print(f"Starting to parse {law_name}...")
 
-    body = root.find(".//{http://docs.oasis-open.org/legaldocml/ns/akn/3.0}body")
-    articles = parse_or_zgb_section(body, law_name, law_type, bucket, ["akomaNtoso", "act", "body"]) if body is not None else []
+    if not os.path.exists(file_path):
+        print(f"File {file_path} does not exist!")
+        return []
 
-    print(f"Parsed {len(articles)} articles from {law_name} under bucket '{bucket}'")
-    return articles
+    try:
+        tree = etree.parse(file_path)
+        root = tree.getroot()
+
+        # Extract <meta> element and base URL
+        meta_element = root.find(".//{http://docs.oasis-open.org/legaldocml/ns/akn/3.0}meta")
+        base_url = extract_identifier(meta_element, law_name)
+
+        # Determine applicable buckets for the law
+        law_buckets = assign_buckets(law_name)
+
+        # Locate <body> element
+        body = root.find(".//{http://docs.oasis-open.org/legaldocml/ns/akn/3.0}body")
+        if body is None:
+            print(f"Body not found for {law_name}.")
+            return []
+
+        # Parse sections within the body
+        articles = []
+        for section in body:
+            articles.extend(parse_or_zgb_section(section, law_name, law_type, law_buckets, base_url))
+        print(f"Parsed {len(articles)} articles from {law_name} assigned to buckets {law_buckets}.")
+        return articles
+
+    except etree.XMLSyntaxError as e:
+        print(f"Error parsing {file_path}: {e}")
+        return []
+
+if __name__ == "__main__":
+    # Test the parser with OR.xml
+    law_file = os.path.join(os.path.dirname(__file__), "../laws/OR.xml")
+    parsed_articles = parse_or_zgb_file(law_file, "OR", "Gesetz")
+
+    # Display a few parsed articles for verification
+    for article in parsed_articles[:5]:
+        print(article)

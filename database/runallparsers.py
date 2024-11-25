@@ -1,29 +1,29 @@
-import sys
 import os
+import sys
 from dotenv import load_dotenv
 
-# Adjust path to find the .env file in the root directory
-env_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".env"))
+# Ensure the script can locate sibling modules within the `database` directory
+current_dir = os.path.dirname(__file__)
+sys.path.append(current_dir)
+
+# Load environment variables from the root `.env` file
+env_path = os.path.abspath(os.path.join(current_dir, "../.env"))
 load_dotenv(dotenv_path=env_path)
 
-# Adjust path to find config.py in the same folder
-database_path = os.path.dirname(__file__)
-sys.path.append(database_path)
-
-# Import the collection and parsers
+# Import dependencies
 from config import collection
 from xmlparser import main as parse_general_laws
-from xmlparserORandZGB import parse_or_zgb_file
+from xmlparserORandZGB import parse_or_zgb_file  # Corrected import
 
 def parse_all_laws(law_folder):
     """
     Parses all XML laws in the specified folder and inserts the parsed data into the database.
     """
-    # Parse OR and ZGB separately
-    or_data = parse_or_zgb_file(os.path.join(law_folder, "OR.xml"), "OR", "Gesetz", "General Counsel Law")
-    zgb_data = parse_or_zgb_file(os.path.join(law_folder, "ZGB.xml"), "ZGB", "Gesetz", "General Counsel Law")
+    # Parse OR and ZGB laws
+    or_data = parse_or_zgb_file(os.path.join(law_folder, "OR.xml"), "OR", "Gesetz")
+    zgb_data = parse_or_zgb_file(os.path.join(law_folder, "ZGB.xml"), "ZGB", "Gesetz")
 
-    # Parse other laws
+    # Parse other general laws
     general_data = parse_general_laws(law_folder)
 
     # Combine all parsed data
@@ -36,7 +36,7 @@ def parse_all_laws(law_folder):
 
 if __name__ == "__main__":
     # Define the folder where the laws are stored
-    law_folder = os.path.join(os.path.dirname(__file__), "laws")
+    law_folder = os.path.join(current_dir, "laws")
 
     # Clear the collection before inserting new data
     result = collection.delete_many({})

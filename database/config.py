@@ -2,8 +2,8 @@ import os
 from dotenv import load_dotenv
 from pymongo import MongoClient
 
-# Load environment variables from .env file
-env_path = os.path.join(os.path.dirname(__file__), ".env")
+# Load environment variables from .env file in the project root directory
+env_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.env"))
 load_dotenv(dotenv_path=env_path)
 
 # MongoDB configuration
