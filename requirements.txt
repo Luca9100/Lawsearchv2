@@ -1,0 +1,6 @@
+streamlit
+pymongo
+openai
+python-dotenv
+requests
+lxml
