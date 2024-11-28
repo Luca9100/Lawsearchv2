@@ -3,9 +3,10 @@ from dotenv import load_dotenv
 from pymongo import MongoClient
 import streamlit as st
 import openai
+from pydantic import BaseModel
 
-# Load environment variables
-load_dotenv()
+# Load environment variables explicitly
+load_dotenv('/Users/luca/Desktop/Law_Bot_2.0/.env')
 
 # MongoDB configuration
 MONGO_URI = os.getenv("MONGO_URI")
@@ -75,40 +76,66 @@ if user_input := st.chat_input("Ask a legal question..."):
         st.chat_message("assistant").markdown("Please select at least one bucket to search in.")
     else:
         with st.spinner("Processing your question..."):
-            # Query MongoDB for relevant articles filtered by buckets
-            results = list(
-                collection.find(
-                    {
-                        "text": {"$regex": user_input, "$options": "i"},
-                        "bucket": {"$elemMatch": {"$in": selected_buckets}},
-                    }
-                )
-            )
-
-            if results:
-                # Prepare legal articles for context
-                context = "\n\n".join(
-                    [
-                        f"{res.get('title', 'No Title')} ({', '.join(res.get('bucket', []))}):\n"
-                        f"{res.get('text', '')}"
-                        for res in results
-                    ]
-                )
-
-                # Send query to OpenAI
-                response = openai.ChatCompletion.create(
+            try:
+                # First: Get GPT-4 response
+                gpt_response = openai.ChatCompletion.create(
                     model=model,
                     messages=[
                         {"role": "system", "content": "You are a legal assistant for Swiss laws."},
-                        {"role": "user", "content": f"Context:\n{context}\n\nQuestion: {user_input}"},
+                        {"role": "user", "content": user_input},
                     ],
                 )
-
-                # Get the assistant's response
-                assistant_reply = response["choices"][0]["message"]["content"]
+                assistant_reply = gpt_response.choices[0].message.content
                 st.session_state.messages.append({"role": "assistant", "content": assistant_reply})
                 st.chat_message("assistant").markdown(assistant_reply)
-            else:
-                no_results_message = "No relevant legal articles found for your query."
-                st.session_state.messages.append({"role": "assistant", "content": no_results_message})
-                st.chat_message("assistant").markdown(no_results_message)
+
+                # Second: Extract relevant laws and articles using function-like schema
+                class LawRetrieval(BaseModel):
+                    law_abbreviation_in_capitals: list[str]
+                    art_number_formatted_as_eId: list[str]
+
+                extraction_tool = openai.pydantic_function_tool(LawRetrieval)
+
+                extraction_response = openai.ChatCompletion.create(
+                    model=model,
+                    messages=[
+                        {"role": "system", "content": "You are a legal assistant for Swiss laws."},
+                        {"role": "user", "content": assistant_reply},
+                    ],
+                    tools=[extraction_tool],
+                )
+
+                law_extraction = extraction_response.choices[0].message.tool_calls[0].function.arguments
+                st.write("Extracted Law Information:")
+                st.json(law_extraction)
+
+                # Third: Query MongoDB for articles based on extracted laws
+                extracted_laws = law_extraction["law_abbreviation_in_capitals"]
+                extracted_articles = law_extraction["art_number_formatted_as_eId"]
+
+                # Build MongoDB query
+                query = {
+                    "$or": [
+                        {"law_name": law, "eId": article}
+                        for law, article in zip(extracted_laws, extracted_articles)
+                    ]
+                }
+
+                # Retrieve articles
+                mongo_results = list(collection.find(query))
+
+                if mongo_results:
+                    st.write("Relevant Articles:")
+                    for result in mongo_results:
+                        st.subheader(result.get("title", "No Title"))
+                        st.write(f"**Law Name:** {result.get('law_name', 'Unknown')}")
+                        st.write(f"**Article Number:** {result.get('eId', 'Unknown')}")
+                        st.write(f"**Buckets:** {', '.join(result.get('bucket', []))}")
+                        st.markdown(f"[Go to Article]({result.get('link', '#')})", unsafe_allow_html=True)
+                        st.write(result.get("text", "No Text Found"))
+                        st.write("---")
+                else:
+                    st.write("No relevant articles found for the extracted information.")
+
+            except Exception as e:
+                st.error(f"An error occurred: {e}")
