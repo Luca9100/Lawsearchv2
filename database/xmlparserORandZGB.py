@@ -45,7 +45,7 @@ def extract_identifier(meta_element, law_name):
     # Use fedlex_identifiers fallback if <meta> is missing or invalid
     return fedlex_identifiers.get(law_name, "default")
 
-def parse_or_zgb_article(article, law_name, law_type, buckets, base_url):
+def parse_or_zgb_article(article, law_name, law_type, buckets, base_url, language):
     """
     Parse articles with specific logic for OR and ZGB.
     """
@@ -82,10 +82,11 @@ def parse_or_zgb_article(article, law_name, law_type, buckets, base_url):
         'law_type': law_type,
         'title': title,
         'text': full_text,
-        'link': f"https://www.fedlex.admin.ch/eli/cc/{base_url}/de#art_{article_number}"
+        'link': f"https://www.fedlex.admin.ch/eli/cc/{base_url}/{language}#art_{article_number}",
+        'language': language  # Add the language field
     }
 
-def parse_or_zgb_section(section, law_name, law_type, buckets, base_url):
+def parse_or_zgb_section(section, law_name, law_type, buckets, base_url, language):
     """
     Recursive parsing for OR/ZGB sections.
     """
@@ -95,19 +96,19 @@ def parse_or_zgb_section(section, law_name, law_type, buckets, base_url):
         tag_name = child.tag.split("}")[-1]
         if tag_name == "article":
             # Parse individual article
-            article_data = parse_or_zgb_article(child, law_name, law_type, buckets, base_url)
+            article_data = parse_or_zgb_article(child, law_name, law_type, buckets, base_url, language)
             articles.append(article_data)
         else:
             # Recursively parse subsections
-            articles.extend(parse_or_zgb_section(child, law_name, law_type, buckets, base_url))
+            articles.extend(parse_or_zgb_section(child, law_name, law_type, buckets, base_url, language))
 
     return articles
 
-def parse_or_zgb_file(file_path, law_name, law_type):
+def parse_or_zgb_file(file_path, law_name, law_type, language):
     """
     Parse OR/ZGB files with specific logic.
     """
-    print(f"Starting to parse {law_name}...")
+    print(f"Starting to parse {law_name} in {language}...")
 
     if not os.path.exists(file_path):
         print(f"File {file_path} does not exist!")
@@ -133,8 +134,8 @@ def parse_or_zgb_file(file_path, law_name, law_type):
         # Parse sections within the body
         articles = []
         for section in body:
-            articles.extend(parse_or_zgb_section(section, law_name, law_type, law_buckets, base_url))
-        print(f"Parsed {len(articles)} articles from {law_name} assigned to buckets {law_buckets}.")
+            articles.extend(parse_or_zgb_section(section, law_name, law_type, law_buckets, base_url, language))
+        print(f"Parsed {len(articles)} articles from {law_name} in {language} assigned to buckets {law_buckets}.")
         return articles
 
     except etree.XMLSyntaxError as e:
@@ -142,9 +143,9 @@ def parse_or_zgb_file(file_path, law_name, law_type):
         return []
 
 if __name__ == "__main__":
-    # Test the parser with OR.xml
-    law_file = os.path.join(os.path.dirname(__file__), "../laws/OR.xml")
-    parsed_articles = parse_or_zgb_file(law_file, "OR", "Gesetz")
+    # Test the parser with OR.xml for the German language
+    law_file = os.path.join(os.path.dirname(__file__), "../laws/de/OR.xml")
+    parsed_articles = parse_or_zgb_file(law_file, "OR", "Gesetz", "de")
 
     # Display a few parsed articles for verification
     for article in parsed_articles[:5]:

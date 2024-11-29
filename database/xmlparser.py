@@ -29,7 +29,7 @@ def assign_buckets(law_name):
             assigned_buckets.append(bucket)
     return assigned_buckets
 
-def parse_article(article, law_name, law_type, buckets, base_url):
+def parse_article(article, law_name, law_type, buckets, base_url, language):
     """Parse an individual article element to extract relevant fields."""
     eId = article.attrib.get("eId", "")
     article_parts = eId.split("_")
@@ -38,7 +38,7 @@ def parse_article(article, law_name, law_type, buckets, base_url):
     text = []
 
     # Construct the link
-    link = f"https://www.fedlex.admin.ch/eli/cc/{base_url}/de#art_{article_number}"
+    link = f"https://www.fedlex.admin.ch/eli/cc/{base_url}/{language}#art_{article_number}"
 
     # Traverse through the article's children to gather title and text
     for child in article:
@@ -61,12 +61,13 @@ def parse_article(article, law_name, law_type, buckets, base_url):
             'law_type': law_type,
             'title': title,
             'text': full_text,
-            'link': link
+            'link': link,
+            'language': language  # Add the language field
         }
         for bucket in buckets
     ]
 
-def parse_section(section, law_name, law_type, buckets, base_url):
+def parse_section(section, law_name, law_type, buckets, base_url, language):
     """Parse sections to find articles and other subsections recursively."""
     articles = []
 
@@ -74,17 +75,17 @@ def parse_section(section, law_name, law_type, buckets, base_url):
         tag_name = child.tag.split("}")[-1]
         if tag_name == "article":
             # Parse individual article
-            article_data = parse_article(child, law_name, law_type, buckets, base_url)
+            article_data = parse_article(child, law_name, law_type, buckets, base_url, language)
             articles.extend(article_data)
         else:
             # Recursively parse sections, chapters, etc.
-            articles.extend(parse_section(child, law_name, law_type, buckets, base_url))
+            articles.extend(parse_section(child, law_name, law_type, buckets, base_url, language))
 
     return articles
 
-def parse_law_file(file_path, law_name, law_type):
+def parse_law_file(file_path, law_name, law_type, language):
     """Parse an XML law file and extract all articles."""
-    print(f"Starting to parse {law_name}...")
+    print(f"Starting to parse {law_name} in {language}...")
 
     if not os.path.exists(file_path):
         print(f"File {file_path} does not exist!")
@@ -116,18 +117,18 @@ def parse_law_file(file_path, law_name, law_type):
             return []
         else:
             print(f"Body found for {law_name}. Parsing sections...")
-            articles = parse_section(body, law_name, law_type, law_buckets, base_url)
-            print(f"Parsed {len(articles)} articles from {law_name} assigned to buckets {law_buckets}.")
+            articles = parse_section(body, law_name, law_type, law_buckets, base_url, language)
+            print(f"Parsed {len(articles)} articles from {law_name} in {language} assigned to buckets {law_buckets}.")
             return articles
     except ET.ParseError as e:
         print(f"Error parsing {file_path}: {e}")
         return []
 
-def main(law_folder):
+def main(law_folder, language):
     """Main function to parse all XML files in the specified folder and return parsed data."""
     all_articles = []
 
-    print(f"Scanning folder: {law_folder}")
+    print(f"Scanning folder: {law_folder} for language: {language}")
     for filename in os.listdir(law_folder):
         if filename.endswith(".xml"):
             law_name = filename.split(".")[0]  # Extract law name from filename
@@ -135,16 +136,16 @@ def main(law_folder):
             law_type = "Gesetz"  # Set law type; can be customized per file
 
             # Parse the law file
-            articles = parse_law_file(file_path, law_name, law_type)
+            articles = parse_law_file(file_path, law_name, law_type, language)
             all_articles.extend(articles)
 
-    print(f"Total articles parsed: {len(all_articles)}")
+    print(f"Total articles parsed: {len(all_articles)} for language: {language}")
     return all_articles
 
 if __name__ == "__main__":
-    # For testing purposes, specify the folder directly if running this script alone.
-    law_folder = os.path.join(os.path.dirname(__file__), "../laws")
-    parsed_data = main(law_folder)
+    # For testing purposes, specify the folder and language directly if running this script alone.
+    law_folder = os.path.join(os.path.dirname(__file__), "../laws/de")
+    parsed_data = main(law_folder, "de")
 
     # Optionally, print the parsed data for verification
     for article in parsed_data[:5]:  # Display only the first 5 articles for preview

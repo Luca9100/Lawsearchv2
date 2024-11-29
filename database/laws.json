@@ -1,0 +1,6 @@
+{
+  "laws": {
+    "de": ["OR", "ZGB", "DSG", "FIDLEG", "KAG", "BankG", "FINIG", "GwG", "ZPO"],
+    "en": ["CO", "CC", "DPA", "FIDLEG", "CISA", "BankA", "FINIA", "AMLA", "CCP"]
+  }
+}
