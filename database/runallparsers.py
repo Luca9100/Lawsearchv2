@@ -4,6 +4,7 @@ from dotenv import load_dotenv
 from config import collection
 from xmlparser import main as parse_general_laws
 from xmlparserORandZGB import parse_or_zgb_file
+import json
 
 # Ensure the script can locate sibling modules within the `database` directory
 current_dir = os.path.dirname(__file__)
@@ -12,6 +13,14 @@ sys.path.append(current_dir)
 # Load environment variables from the root `.env` file
 env_path = os.path.abspath(os.path.join(current_dir, "../.env"))
 load_dotenv(dotenv_path=env_path)
+
+# Load laws.json to access abbreviations, base_url, and buckets
+laws_json_path = os.path.join(current_dir, "laws.json")
+with open(laws_json_path, "r") as f:
+    laws_data = json.load(f)
+
+base_url = laws_data["base_url"]
+laws_by_language = laws_data["laws"]
 
 def parse_all_laws(law_folder):
     """
@@ -28,24 +37,45 @@ def parse_all_laws(law_folder):
 
         print(f"Parsing laws for language: {language}")
 
+        # Access language-specific laws
+        language_laws = laws_by_language.get(language, {})
+        if not language_laws:
+            print(f"No laws found for language: {language}. Skipping.")
+            continue
+
         # Parse OR and ZGB specifically
-        or_file = os.path.join(lang_folder, "OR.xml")
-        zgb_file = os.path.join(lang_folder, "ZGB.xml")
-
-        if os.path.exists(or_file):
-            or_data = parse_or_zgb_file(or_file, "OR", "Gesetz")
-            all_data.extend(or_data)
-
-        if os.path.exists(zgb_file):
-            zgb_data = parse_or_zgb_file(zgb_file, "ZGB", "Gesetz")
-            all_data.extend(zgb_data)
+        for abbreviation in ["OR", "ZGB"]:
+            if abbreviation in language_laws:
+                law_path = os.path.join(lang_folder, f"{abbreviation}.xml")
+                if os.path.exists(law_path):
+                    print(f"Parsing {abbreviation} in {language}...")
+                    or_zgb_data = parse_or_zgb_file(
+                        law_path,
+                        abbreviation,
+                        language,
+                        base_url
+                    )
+                    all_data.extend(or_zgb_data)
 
         # Parse other general laws
-        general_data = parse_general_laws(lang_folder)
-        all_data.extend(general_data)
+        for abbreviation, path_suffix in language_laws.items():
+            if abbreviation not in ["OR", "ZGB"]:  # Skip OR and ZGB here
+                law_path = os.path.join(lang_folder, f"{abbreviation}.xml")
+                if os.path.exists(law_path):
+                    print(f"Parsing {abbreviation} in {language}...")
+                    general_data = parse_general_laws(
+                        law_path, abbreviation, language, base_url
+                    )
+                    all_data.extend(general_data)
 
     # Insert all parsed data into the database
     if all_data:
+        # Ensure buckets are always lists and remove unwanted fields
+        for doc in all_data:
+            if not isinstance(doc["bucket"], list):
+                doc["bucket"] = [doc["bucket"]]
+            doc.pop("law_type", None)  # Remove `law_type` if present
+
         collection.insert_many(all_data)
         print(f"Inserted {len(all_data)} documents into the collection.")
     else:

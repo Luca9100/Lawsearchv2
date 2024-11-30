@@ -2,50 +2,31 @@ from lxml import etree
 import os
 import json
 
-# Define buckets and associated laws
-buckets = {
-    "General Counsel Law": ["OR", "ZGB", "DSG"],
-    "Corporate Law": ["OR", "ZGB"],
-    "Financial Law": ["OR", "ZGB", "FINIG", "KAG", "FIDLEG", "GwG", "BankG"]
-}
-
-# Load fedlex_identifiers from JSON
-def load_fedlex_identifiers():
-    json_path = os.path.join(os.path.dirname(__file__), "fedlex_identifiers.json")
-    if not os.path.exists(json_path):
-        raise FileNotFoundError("fedlex_identifiers.json not found. Please run fetch_laws.py.")
-    with open(json_path, "r") as f:
-        return json.load(f)
-
-fedlex_identifiers = load_fedlex_identifiers()
-
-def assign_buckets(law_name):
+# Load laws and buckets from laws.json
+def load_laws_and_buckets():
     """
-    Determine all applicable buckets for a given law name.
+    Loads laws and buckets from laws.json.
+    """
+    json_path = os.path.join(os.path.dirname(__file__), "laws.json")
+    if not os.path.exists(json_path):
+        raise FileNotFoundError("laws.json not found. Please create it with the laws and buckets.")
+    with open(json_path, "r") as f:
+        data = json.load(f)
+        return data["base_url"], data["laws"], data["buckets"]
+
+base_url, laws_by_language, buckets = load_laws_and_buckets()
+
+def assign_buckets(law_name, language):
+    """
+    Determine all applicable buckets for a given law name and language.
     """
     assigned_buckets = []
-    for bucket, laws in buckets.items():
-        if law_name in laws:
-            assigned_buckets.append(bucket)
+    for bucket_name, laws_in_languages in buckets.items():
+        if law_name in laws_in_languages.get(language, []):
+            assigned_buckets.append(bucket_name)
     return assigned_buckets
 
-def extract_identifier(meta_element, law_name):
-    """
-    Extracts the unique identifier for the law from the <meta> section.
-    """
-    if meta_element is not None:
-        frbr_manifestation = meta_element.find(".//{http://docs.oasis-open.org/legaldocml/ns/akn/3.0}FRBRManifestation")
-        if frbr_manifestation is not None:
-            identifier = frbr_manifestation.attrib.get("value")
-            if identifier:
-                # Extract the relevant part of the identifier for the URL
-                parts = identifier.split("eli/cc/")
-                if len(parts) > 1:
-                    return parts[1].split("/")[0]
-    # Use fedlex_identifiers fallback if <meta> is missing or invalid
-    return fedlex_identifiers.get(law_name, "default")
-
-def parse_or_zgb_article(article, law_name, law_type, buckets, base_url, language):
+def parse_or_zgb_article(article, law_name, law_buckets, base_url, relative_path, language):
     """
     Parse articles with specific logic for OR and ZGB.
     """
@@ -74,19 +55,21 @@ def parse_or_zgb_article(article, law_name, law_type, buckets, base_url, languag
 
     full_text = "\n".join(text)
 
+    # Construct the link dynamically
+    link = f"{base_url}{relative_path}/#art_{article_number}"
+
     # Return a single article with all buckets
     return {
         'law_name': law_name,
         'eId': eId,
-        'bucket': buckets,  # Assign all applicable buckets as a list
-        'law_type': law_type,
+        'bucket': law_buckets,  # Assign all applicable buckets as a list
         'title': title,
         'text': full_text,
-        'link': f"https://www.fedlex.admin.ch/eli/cc/{base_url}/{language}#art_{article_number}",
+        'link': link,
         'language': language  # Add the language field
     }
 
-def parse_or_zgb_section(section, law_name, law_type, buckets, base_url, language):
+def parse_or_zgb_section(section, law_name, law_buckets, base_url, relative_path, language):
     """
     Recursive parsing for OR/ZGB sections.
     """
@@ -96,34 +79,54 @@ def parse_or_zgb_section(section, law_name, law_type, buckets, base_url, languag
         tag_name = child.tag.split("}")[-1]
         if tag_name == "article":
             # Parse individual article
-            article_data = parse_or_zgb_article(child, law_name, law_type, buckets, base_url, language)
+            article_data = parse_or_zgb_article(child, law_name, law_buckets, base_url, relative_path, language)
             articles.append(article_data)
         else:
             # Recursively parse subsections
-            articles.extend(parse_or_zgb_section(child, law_name, law_type, buckets, base_url, language))
+            articles.extend(parse_or_zgb_section(child, law_name, law_buckets, base_url, relative_path, language))
 
     return articles
 
-def parse_or_zgb_file(file_path, law_name, law_type, language):
+def parse_or_zgb_file(file_path, language):
     """
-    Parse OR/ZGB files with specific logic.
+    Parse OR/ZGB files with specific logic for different languages.
     """
-    print(f"Starting to parse {law_name} in {language}...")
+    # Map abbreviations based on language
+    law_map = {
+        "de": {"OR": "OR", "ZGB": "ZGB"},
+        "en": {"CO": "CO", "CC": "CC"},
+        "fr": {"CO": "CO", "CC": "CC"}
+    }
+
+    # Extract the filename without the path or extension
+    law_filename = os.path.basename(file_path).replace(".xml", "")
+
+    # Check if the filename matches a key in the mapping for the given language
+    if law_filename in law_map.get(language, {}):
+        law_name = law_map[language][law_filename]
+    else:
+        print(f"No matching law name for {file_path}. Skipping.")
+        return []
+
+    print(f"Starting to parse {law_name} ({language})...")
 
     if not os.path.exists(file_path):
         print(f"File {file_path} does not exist!")
         return []
 
     try:
-        tree = etree.parse(file_path)
-        root = tree.getroot()
-
-        # Extract <meta> element and base URL
-        meta_element = root.find(".//{http://docs.oasis-open.org/legaldocml/ns/akn/3.0}meta")
-        base_url = extract_identifier(meta_element, law_name)
+        # Get the relative path for the law from laws.json
+        relative_path = laws_by_language.get(language, {}).get(law_name, "")
+        if not relative_path:
+            print(f"Relative path for {law_name} not found in {language}. Skipping.")
+            return []
 
         # Determine applicable buckets for the law
-        law_buckets = assign_buckets(law_name)
+        law_buckets = assign_buckets(law_name, language)
+
+        # Parse the XML file
+        tree = etree.parse(file_path)
+        root = tree.getroot()
 
         # Locate <body> element
         body = root.find(".//{http://docs.oasis-open.org/legaldocml/ns/akn/3.0}body")
@@ -134,7 +137,7 @@ def parse_or_zgb_file(file_path, law_name, law_type, language):
         # Parse sections within the body
         articles = []
         for section in body:
-            articles.extend(parse_or_zgb_section(section, law_name, law_type, law_buckets, base_url, language))
+            articles.extend(parse_or_zgb_section(section, law_name, law_buckets, base_url, relative_path, language))
         print(f"Parsed {len(articles)} articles from {law_name} in {language} assigned to buckets {law_buckets}.")
         return articles
 
@@ -143,9 +146,9 @@ def parse_or_zgb_file(file_path, law_name, law_type, language):
         return []
 
 if __name__ == "__main__":
-    # Test the parser with OR.xml for the German language
+    # Test the parser for OR in German
     law_file = os.path.join(os.path.dirname(__file__), "../laws/de/OR.xml")
-    parsed_articles = parse_or_zgb_file(law_file, "OR", "Gesetz", "de")
+    parsed_articles = parse_or_zgb_file(law_file, "de")
 
     # Display a few parsed articles for verification
     for article in parsed_articles[:5]:
