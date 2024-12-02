@@ -25,9 +25,37 @@ model = "gpt-4"
 
 # Define buckets and associated laws
 buckets = {
-    "General Counsel Law": ["OR", "ZGB", "DSG"],
-    "Corporate Law": ["OR", "ZGB"],
-    "Financial Law": ["OR", "ZGB", "FINIG", "KAG", "FIDLEG", "GwG", "BankG"]
+    "General Counsel Law": {
+        "de": ["OR", "ZGB", "DSG"],
+        "en": ["CO", "CC", "DPA"],
+        "fr": ["CO", "CC", "LPD"]
+    },
+    "Corporate Law": {
+        "de": ["OR", "ZGB"],
+        "en": ["CO", "CC"],
+        "fr": ["CO", "CC"]
+    },
+    "Financial Law": {
+        "de": ["OR", "ZGB", "FINIG", "KAG", "FIDLEG", "GwG", "BankG"],
+        "en": ["CO", "CC", "FINIA", "CISA", "FIDLEG", "AMLA", "BankA"],
+        "fr": ["CO", "CC", "LEFin", "LPCC", "LSFin", "LBA", "LB"]
+    }
+}
+
+# OpenAI interface messages based on language selection
+openai_messages = {
+    "de": {
+        "first_interface_system": "Du bist ein Experte für Schweizer Recht und verweist in deinen Antworten, wann immer möglich, auf die relevanten Gesetze und Artikel.",
+        "second_interface_system": "Du bist ein Experte für Schweizer Recht und extrahierst alle relevanten Gesetze und Artikel aus der query. Formatiere law_abbreviation_in_capitals so [OR, ZGB, OR, DSG, OR, etc.] der gleiche Wert darf mehrfach in der Liste vorkommen. Formatiere art_number_formatted_as_eId so [art_4, art_620, art_635_a, etc.]"
+    },
+    "en": {
+        "first_interface_system": "You are an expert in Swiss law and always refer to relevant laws and articles in your responses.",
+        "second_interface_system": "You are an expert in Swiss law and extract all relevant laws and articles from the query. Format law_abbreviation_in_capitals as [CO, CC, CISA, AMLA, etc.]. The same value may appear multiple times in the list. Format art_number_formatted_as_eId as [art_4, art_620, art_635_a, etc.]."
+    },
+    "fr": {
+        "first_interface_system": "Vous êtes un expert en droit suisse et vous faites toujours référence aux lois et articles pertinents dans vos réponses.",
+        "second_interface_system": "Vous êtes un expert en droit suisse et vous extrayez toutes les lois et articles pertinents de la requête. Formatez law_abbreviation_in_capitals comme [CO, CC, LPD, LEFin, LPCC, LSFin, LBA, LB etc.]. La même valeur peut apparaître plusieurs fois dans la liste. Formatez art_number_formatted_as_eId comme [art_4, art_620, art_635_a, etc.]."
+    }
 }
 
 # Streamlit Configuration
@@ -36,10 +64,15 @@ st.set_page_config(page_title="Legal Bot Chat", page_icon="💬")
 st.title("Legal Bot - Chat with Swiss Laws")
 st.write("Ask questions and get answers based on the legal database.")
 
+# Add language selection to the sidebar
+st.sidebar.header("Select Language")
+language = st.sidebar.selectbox("Language", options=["de", "en", "fr"], index=0)
+
 # Add bucket overview to the sidebar
 st.sidebar.header("Buckets Overview")
-for bucket_name, laws in buckets.items():
-    st.sidebar.markdown(f"**{bucket_name}**: {', '.join(laws)}")
+for bucket_name, laws_by_language in buckets.items():
+    laws_for_selected_language = laws_by_language.get(language, [])
+    st.sidebar.markdown(f"**{bucket_name} ({language.upper()})**: {', '.join(laws_for_selected_language)}")
 
 # Add checkboxes for bucket selection
 st.sidebar.header("Filter by Buckets")
@@ -55,6 +88,11 @@ if corporate:
     selected_buckets.append("Corporate Law")
 if financial:
     selected_buckets.append("Financial Law")
+
+# Map selected buckets to language-specific laws
+selected_laws = []
+for bucket_name in selected_buckets:
+    selected_laws.extend(buckets[bucket_name].get(language, []))
 
 # Initialize chat messages
 if "messages" not in st.session_state:
@@ -82,7 +120,7 @@ if user_input := st.chat_input("Ask a legal question..."):
                 completion = openai_client.chat.completions.create(
                     model=model,
                     messages=[
-                        {"role": "system", "content": "Du bist ein Experte für Schweizer Recht und verweist in deinen Antworten, wann immer möglich, auf die relevanten Gesetze und Artikel."},
+                        {"role": "system", "content": openai_messages[language]["first_interface_system"]},
                         {"role": "user", "content": user_input},
                     ],
                 )
@@ -100,7 +138,7 @@ if user_input := st.chat_input("Ask a legal question..."):
                 extraction = openai_client.beta.chat.completions.parse(
                     model="gpt-4o-2024-08-06",
                     messages=[
-                        {"role": "system", "content": "Du bist ein Experte für Schweizer Recht und extrahierst alle relevanten Gesetze und Artikel aus der query. Formatiere law_abbreviation_in_capitals so [OR, ZGB, OR, DSG, OR, etc.] der gleiche Wert darf mehrfach in der Liste vorkommen. Formatiere art_number_formatted_as_eId so [art_4, art_620, art_635_a, etc.]"},
+                        {"role": "system", "content": openai_messages[language]["second_interface_system"]},
                         {"role": "user", "content": response},
                     ],
                     response_format=LawRetrieval,
@@ -111,7 +149,8 @@ if user_input := st.chat_input("Ask a legal question..."):
                 mongo_query = {
                     "law_name": {"$in": law_extraction.law_abbreviation_in_capitals},
                     "eId": {"$in": law_extraction.art_number_formatted_as_eId},
-                    "bucket": {"$in": selected_buckets},  # Match string bucket values
+                    "bucket": {"$in": selected_buckets},
+                    "language": language
                 }
                 results = list(collection.find(mongo_query))
 
