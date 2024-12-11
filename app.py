@@ -4,7 +4,7 @@ from dotenv import load_dotenv
 from pymongo import MongoClient
 import streamlit as st
 from pydantic import BaseModel
-import openai
+from openai import OpenAI
 
 # Load environment variables
 load_dotenv('.env')
@@ -21,7 +21,7 @@ collection = db[COLLECTION_NAME]
 
 # OpenAI configuration
 api_key = os.getenv("OPENAI_API_KEY")
-openai.api_key = api_key
+openai_client = OpenAI(api_key=api_key)
 model = "gpt-4"
 
 # Load laws and buckets from laws.json
@@ -115,7 +115,7 @@ if user_input := st.chat_input("Ask a legal question..."):
                 )
 
                 # First Interface: OpenAI ChatGPT Response
-                completion = openai.ChatCompletion.create(
+                completion = openai_client.chat.completions.create(
                     model=model,
                     messages=[
                         {"role": "system", "content": first_system_message},
@@ -133,22 +133,20 @@ if user_input := st.chat_input("Ask a legal question..."):
                     law_abbreviation_in_capitals: list[str]
                     art_number_formatted_as_eId: list[str]
 
-                extraction = openai.ChatCompletion.create(
-                    model=model,
+                extraction = openai_client.beta.chat.completions.parse(
+                    model="gpt-4o-2024-08-06",
                     messages=[
                         {"role": "system", "content": openai_messages[language]["second_interface_system"]},
                         {"role": "user", "content": response},
-                    ]
+                    ],
+                    response_format=LawRetrieval,
                 )
-                law_extraction = extraction.choices[0].message.content
-
-                # Parse the extracted response
-                law_data = json.loads(law_extraction)
+                law_extraction = extraction.choices[0].message.parsed
 
                 # Query MongoDB Database
                 mongo_query = {
-                    "law_name": {"$in": law_data["law_abbreviation_in_capitals"]},
-                    "eId": {"$in": law_data["art_number_formatted_as_eId"]},
+                    "law_name": {"$in": law_extraction.law_abbreviation_in_capitals},
+                    "eId": {"$in": law_extraction.art_number_formatted_as_eId},
                     "bucket": {"$in": selected_buckets},
                     "language": language
                 }
