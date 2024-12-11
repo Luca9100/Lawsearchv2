@@ -5,48 +5,139 @@
       "OR": "cc/27/317_321_377/de",
       "ZGB": "cc/24/233_245_233/de",
       "DSG": "oc/2022/491/de",
-      "FIDLEG": "cc/2018/801/de",
+      "FIDLEG": "cc/2019/758/de",
       "KAG": "cc/2006/822/de",
       "BankG": "cc/51/117_121_129/de",
       "FINIG": "cc/2018/801/de",
       "GwG": "cc/1998/892_892_892/de",
-      "ZPO": "cc/2010/262/de"
+      "AHVG": "cc/63/837_843_843/de",
+      "ArG": "cc/1966/57_57_57/de",
+      "AVIG": "cc/1982/2184_2184_2184/de",
+      "AVG": "cc/1991/392_392_392/de",
+      "BVG": "cc/1983/797_797_797/de",
+      "IVG": "cc/1959/827_857_845/de",
+      "UVG": "cc/1982/1676_1676_1676/de",
+      "URG": "cc/1993/1798_1798_1798/de",
+      "PatG": "cc/1955/871_893_899/de",
+      "MSchG": "cc/1993/274_274_274/de",
+      "DesG": "cc/2002/226/de",
+      "UWG": "cc/1988/223_223_223/de",
+      "HRegV": "cc/2007/686/de",
+      "AIG": "cc/2007/758/de",
+      "VZAE": "cc/2007/759/de",
+      "AsylG": "cc/1999/358/de"
     },
     "en": {
       "CO": "cc/27/317_321_377/en",
       "CC": "cc/24/233_245_233/en",
-      "FinSA": "cc/2018/801/en",
+      "FinSA": "cc/2019/758/en",
       "CISA": "cc/2006/822/en",
       "FinIA": "cc/2018/801/en",
-      "AMLA": "cc/1998/892_892_892/en"
+      "AMLA": "cc/1998/892_892_892/en",
+      "FADP": "cc/2022/491/en",
+      "CopA": "cc/1993/1798_1798_1798/en",
+      "PatA": "cc/1955/871_893_899/en",
+      "TmPA": "cc/1993/274_274_274/en",
+      "DesA": "cc/2002/226/en",
+      "UCA": "cc/1988/223_223_223/en",
+      "FNIA": "eli/cc/2007/758/en",
+      "AsylA": "cc/1999/358/en"
     },
     "fr": {
       "CO": "cc/27/317_321_377/fr",
       "CC": "cc/24/233_245_233/fr",
       "LPD": "2022/491/fr",
-      "LSFin": "cc/2018/801/fr",
+      "LSFin": "cc/2019/758/fr",
       "LPCC": "cc/2006/822/fr",
       "LB": "cc/51/117_121_129/fr",
       "LEFin": "cc/2018/801/fr",
       "LBA": "cc/1998/892_892_892/fr",
-      "CPC": "cc/2010/262/fr"
+      "LAVS": "cc/63/837_843_843/fr",
+      "LTr": "cc/1966/57_57_57/fr",
+      "LACI": "cc/1982/2184_2184_2184/fr",
+      "LSE": "cc/1991/392_392_392/fr",
+      "LPP": "cc/1983/797_797_797/fr",
+      "LAI": "cc/1959/827_857_845/fr",
+      "LAA": "cc/1982/1676_1676_1676/fr",
+      "LDA": "cc/1993/1798_1798_1798/fr",
+      "LBI": "cc/1955/871_893_899/fr",
+      "LPM": "cc/1993/274_274_274/fr",
+      "LDes": "cc/2002/226/fr",
+      "LCD": "cc/1988/223_223_223/fr",
+      "ORC": "eli/cc/2007/686/fr",
+      "LEI": "cc/2007/758/fr",
+      "OASA": "cc/2007/759/fr",
+      "LAsi": "cc/1999/358/fr"
+    },
+    "it": {
+      "CO": "cc/27/317_321_377/it",
+      "CC": "cc/24/233_245_233/it",
+      "LPD": "cc/2022/491/it",
+      "LIsFi": "cc/2018/801/it",
+      "LICol": "cc/2006/822/it",
+      "LSerFi": "cc/2019/758/it",
+      "LRD": "cc/1998/892_892_892/it",
+      "LBCR": "cc/51/117_121_129/it",
+      "LAVS": "cc/63/837_843_843/it",
+      "LL": "cc/1966/57_57_57/it",
+      "LADI": "cc/1982/2184_2184_2184/it",
+      "LC": "cc/1991/392_392_392/it",
+      "LPP": "cc/1983/797_797_797/it",
+      "LAI": "cc/1959/827_857_845/it",
+      "LAINF": "cc/1982/1676_1676_1676/it",
+      "LDA": "cc/1993/1798_1798_1798/it",
+      "LBI": "cc/1955/871_893_899/it",
+      "LPM": "cc/1993/274_274_274/it",
+      "LDes": "cc/2002/226/it",
+      "LCSl": "cc/1988/223_223_223/it",
+      "ORC": "eli/cc/2007/686/it",
+      "LStrI": "cc/2007/758/it",
+      "OASA": "cc/2007/759/it",
+      "LAsi": "cc/1999/358/it"
     }
   },
   "buckets": {
-    "General Counsel Law": {
-      "de": ["OR", "ZGB", "DSG"],
-      "en": ["CO", "CC", "DPA"],
-      "fr": ["CO", "CC", "LPD"]
+    "Human Ressources Law": {
+        "de": ["AHVG", "ArG", "AVIG", "AVG", "BVG", "IVG", "UVG", "OR", "ZGB"],
+        "en": ["CO", "CC"],
+        "fr": ["LAVS", "LTr", "LACI", "LSE", "LPP", "LAI", "LAA", "CO", "CC"],
+        "it": ["LAVS", "LL", "LADI", "LC", "LPP", "LAI", "LAINF", "CO", "CC"]
     },
     "Corporate Law": {
-      "de": ["OR", "ZGB"],
-      "en": ["CO", "CC"],
-      "fr": ["CO", "CC"]
+        "de": ["OR", "ZGB"],
+        "en": ["CO", "CC"],
+        "fr": ["CO", "CC"],
+        "it": ["CO", "CC"]
+    },
+    "Data Protection Law": {
+        "de": ["OR", "ZGB", "DSG"],
+        "en": ["CO", "CC", "FADP"],
+        "fr": ["CO", "CC", "LPD"],
+        "it": ["CO", "CC", "LPD"]
     },
     "Financial Law": {
-      "de": ["OR", "ZGB", "FINIG", "KAG", "FIDLEG", "GwG", "BankG"],
-      "en": ["CO", "CC", "FINIA", "CISA", "FIDLEG", "AMLA", "BankA"],
-      "fr": ["CO", "CC", "LEFin", "LPCC", "LSFin", "LBA", "LB"]
+        "de": ["FINIG", "KAG", "FIDLEG", "GwG", "BankG", "OR", "ZGB"],
+        "en": ["FinIA", "CISA", "FinSA", "AMLA", "CO", "CC"],
+        "fr": ["LEFin", "LPCC", "LSFin", "LBA", "LB", "CO", "CC"],
+        "it": ["LIsFi", "LICol", "LSerFi", "LRD", "LBCR", "CO", "CC"]
+    },
+    "Intellectual Property Law": {
+        "de": ["URG","PatG", "MSchG", "DesG", "UWG", "OR", "ZGB"],
+        "en": ["CopA","PatA", "TmPA", "DesA", "UCA", "CO", "CC"],
+        "fr": ["LDA", "LBI", "LPM", "LDes", "LCD", "CO", "CC"],
+        "it": ["LDA","LBI", "LPM", "LDes", "LCSl", "CO", "CC"]
+    },
+    "Notary Law": {
+        "de": ["HRegV", "OR", "ZGB"],
+        "en": ["CO", "CC"],
+        "fr": ["ORC", "CO", "CC"],
+        "it": ["ORC","CO", "CC"]
+    },
+    "Migration Law": {
+        "de": ["AIG", "VZAE", "AsylG"],
+        "en": ["FNIA", "AsylA"],
+        "fr": ["LEI", "OASA", "LAsi"],
+        "it": ["LStrI", "OASA", "LAsi"]
     }
   }
 }
