@@ -22,7 +22,7 @@ collection = db[COLLECTION_NAME]
 # OpenAI configuration
 api_key = os.getenv("OPENAI_API_KEY")
 openai_client = OpenAI(api_key=api_key)
-model = "gpt-4"
+model = "gpt-4o"
 
 # Load laws and buckets from laws.json
 laws_file_path = 'laws.json'
@@ -104,21 +104,12 @@ if user_input := st.chat_input("Ask a legal question..."):
     else:
         with st.spinner("Processing your question..."):
             try:
-                # Prepare unique list of laws
-                unique_laws = list(set(selected_laws))  # Remove duplicates
-                laws_list_str = ', '.join(unique_laws)  # Convert to a comma-separated string
-
-                # Dynamically format the system message for the first interface
-                first_system_message = (
-                    f"{openai_messages[language]['first_interface_system']} "
-                    f"Pay special attention to the following laws: {laws_list_str}."
-                )
-
+                
                 # First Interface: OpenAI ChatGPT Response
                 completion = openai_client.chat.completions.create(
                     model=model,
                     messages=[
-                        {"role": "system", "content": first_system_message},
+                        {"role": "system", "content": openai_messages[language]["first_interface_system"]},
                         {"role": "user", "content": user_input},
                     ],
                 )
@@ -134,7 +125,7 @@ if user_input := st.chat_input("Ask a legal question..."):
                     art_number_formatted_as_eId: list[str]
 
                 extraction = openai_client.beta.chat.completions.parse(
-                    model="gpt-4o-2024-08-06",
+                    model="gpt-4o",
                     messages=[
                         {"role": "system", "content": openai_messages[language]["second_interface_system"]},
                         {"role": "user", "content": response},
