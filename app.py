@@ -4,7 +4,7 @@ from dotenv import load_dotenv
 from pymongo import MongoClient
 import streamlit as st
 from pydantic import BaseModel
-from openai import OpenAI
+import openai
 
 # Load environment variables
 load_dotenv('.env')
@@ -21,7 +21,7 @@ collection = db[COLLECTION_NAME]
 
 # OpenAI configuration
 api_key = os.getenv("OPENAI_API_KEY")
-openai_client = OpenAI(api_key=api_key)
+openai.api_key = api_key
 model = "gpt-4"
 
 # Load laws and buckets from laws.json
@@ -54,7 +54,7 @@ openai_messages = {
 }
 
 # Streamlit Configuration
-st.set_page_config(page_title="Legal Bot Chat", page_icon="\ud83d\udcac")
+st.set_page_config(page_title="Legal Bot Chat", page_icon="💬")
 
 st.title("Legal Bot - Chat with Swiss Laws")
 st.write("Ask questions and get answers based on the legal database.")
@@ -115,7 +115,7 @@ if user_input := st.chat_input("Ask a legal question..."):
                 )
 
                 # First Interface: OpenAI ChatGPT Response
-                completion = openai_client.chat.completions.create(
+                completion = openai.ChatCompletion.create(
                     model=model,
                     messages=[
                         {"role": "system", "content": first_system_message},
@@ -133,20 +133,22 @@ if user_input := st.chat_input("Ask a legal question..."):
                     law_abbreviation_in_capitals: list[str]
                     art_number_formatted_as_eId: list[str]
 
-                extraction = openai_client.beta.chat.completions.parse(
-                    model="gpt-4o-2024-08-06",
+                extraction = openai.ChatCompletion.create(
+                    model=model,
                     messages=[
                         {"role": "system", "content": openai_messages[language]["second_interface_system"]},
                         {"role": "user", "content": response},
-                    ],
-                    response_format=LawRetrieval,
+                    ]
                 )
-                law_extraction = extraction.choices[0].message.parsed
+                law_extraction = extraction.choices[0].message.content
+
+                # Parse the extracted response
+                law_data = json.loads(law_extraction)
 
                 # Query MongoDB Database
                 mongo_query = {
-                    "law_name": {"$in": law_extraction.law_abbreviation_in_capitals},
-                    "eId": {"$in": law_extraction.art_number_formatted_as_eId},
+                    "law_name": {"$in": law_data["law_abbreviation_in_capitals"]},
+                    "eId": {"$in": law_data["art_number_formatted_as_eId"]},
                     "bucket": {"$in": selected_buckets},
                     "language": language
                 }
