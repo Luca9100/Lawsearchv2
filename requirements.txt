@@ -1,9 +1,0 @@
-streamlit
-pymongo
-openai
-python-dotenv
-requests
-lxml
-watchdog
-streamlit
-pydantic
