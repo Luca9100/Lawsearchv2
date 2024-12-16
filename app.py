@@ -22,7 +22,7 @@ collection = db[COLLECTION_NAME]
 # OpenAI configuration
 api_key = os.getenv("OPENAI_API_KEY")
 openai_client = OpenAI(api_key=api_key)
-model = "gpt-4"
+model = "gpt-4o"
 
 # Load laws and buckets from laws.json
 laws_file_path = 'laws.json'
