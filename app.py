@@ -7,7 +7,7 @@ from pydantic import BaseModel
 from openai import OpenAI
 
 # Load environment variables
-load_dotenv('/Users/luca/Desktop/Law_Bot_2.0_v2/Law_Bot_2.0/.env')
+load_dotenv('.env')
 
 # MongoDB configuration
 MONGO_URI = os.getenv("MONGO_URI")
@@ -25,7 +25,7 @@ openai_client = OpenAI(api_key=api_key)
 model = "gpt-4"
 
 # Load laws and buckets from laws.json
-laws_file_path = '/Users/luca/Desktop/Law_Bot_2.0_v2/Law_Bot_2.0/database/laws.json'
+laws_file_path = 'laws.json'
 with open(laws_file_path, 'r', encoding='utf-8') as file:
     laws_data = json.load(file)
 
